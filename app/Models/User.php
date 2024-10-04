@@ -2,44 +2,54 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Foundation\Auth\User as Authenticatable; // Kế thừa từ Authenticatable
 use Illuminate\Notifications\Notifiable;
-use Laravel\Sanctum\HasApiTokens;
+use Tymon\JWTAuth\Contracts\JWTSubject; // Import interface JWTSubject
 
-class User extends Authenticatable
+class User extends Authenticatable implements JWTSubject // Thêm implements JWTSubject
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasFactory, Notifiable;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
+    protected $table = 'users'; // Tên bảng
+
+    protected $primaryKey = 'user_id'; // Khóa chính
+
+    public $timestamps = true; // Sử dụng timestamps
+
+    // Các trường có thể được gán (fillable)
     protected $fillable = [
-        'name',
+        'user_name',
+        'avatar',
         'email',
         'password',
+        'gender',
+        'role',
+        'google_id',
+        'access_token',
+        'provider',
+        'email_verified_at',
+        'email_verification_token'
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var array<int, string>
-     */
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+    ];
+
+    // Nếu bạn muốn ẩn mật khẩu khi trả về thông tin người dùng
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * The attributes that should be cast.
-     *
-     * @var array<string, string>
-     */
-    protected $casts = [
-        'email_verified_at' => 'datetime',
-        'password' => 'hashed',
-    ];
+    // Thêm hai phương thức cần thiết cho JWTSubject
+    public function getJWTIdentifier()
+    {
+        return $this->getKey(); // Trả về khóa chính của người dùng
+    }
+
+    public function getJWTCustomClaims()
+    {
+        return []; // Trả về một mảng chứa các claim tùy chỉnh (nếu có)
+    }
 }

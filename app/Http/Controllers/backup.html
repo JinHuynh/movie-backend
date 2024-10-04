@@ -1,0 +1,158 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Invoice;
+use App\Models\Package;
+use App\Models\Voucher; // Import Voucher model
+use App\Mail\InvoiceMail;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
+
+class PaymentController extends Controller
+{
+    // Hàm tạo hóa đơn và chuyển hướng đến VNPay
+    public function createPayment(Request $request)
+    {
+        // Xác thực dữ liệu đầu vào
+        $validator = Validator::make($request->all(), [
+            'package_id' => 'required|exists:packages,package_id',
+            'voucher_name' => 'nullable|exists:vouchers,name', // Kiểm tra tên voucher
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        $userId = auth()->user()->user_id; // Lấy ID người dùng đã đăng nhập
+        $package = Package::find($request->package_id);
+
+        // Tạo mã hóa đơn với một số ngẫu nhiên
+        $invoiceCode = 'INV-' . mt_rand(10000000, 99999999); // Tạo số ngẫu nhiên từ 8 chữ số
+
+        // Tính toán giá trị giảm giá
+        $discount = 0; // Giá trị giảm giá
+        $voucherId = null; // Khởi tạo voucherId
+        if ($request->voucher_name) {
+            $voucher = Voucher::where('name', $request->voucher_name)->first();
+            if ($voucher) {
+                $voucherId = $voucher->voucher_id; // Lấy ID voucher từ tên
+                // Lấy giá trị giảm giá từ voucherType
+                $discount = $voucher->voucherType->discount; // Lấy discount từ bảng voucher_types
+            }
+        }
+
+        // Tính tổng sau khi giảm giá
+        $discountAmount = ($package->price * $discount) / 100; // Tính giá trị giảm giá
+        $total = $package->price - $discountAmount; // Trừ discount từ giá gói
+        $total = max($total, 0); // Đảm bảo tổng không âm
+        // dd($total);
+        // Tạo hóa đơn
+        $invoice = Invoice::create([
+            'invoice_code' => $invoiceCode,
+            'total' => $total * 100, // VNPay yêu cầu số tiền là VND
+            'payment_method' => 'VNPay',
+            'user_id' => $userId,
+            'created_at' => now(),
+            'start_date' => now(),
+            'end_date' => now()->addDays($package->duration),
+            'voucher_id' => $voucherId, // Lưu voucher_id nếu có
+            'status' => 'pending', // Trạng thái ban đầu
+        ]);
+
+        // Thông tin kết nối VNPay
+        $vnp_TmnCode = env('VNP_TMNCODE');
+        $vnp_HashSecret = env('VNP_HASHSECRET');
+        $vnp_Url = env('VNP_URL'); // URL của VNPay
+        $vnp_Returnurl = route('payment.return'); // Đường dẫn quay lại
+
+        // Thông tin thanh toán
+        $vnp_Data = [
+            "vnp_Version" => "2.1.0",
+            "vnp_Command" => "pay",
+            "vnp_TmnCode" => $vnp_TmnCode,
+            "vnp_Amount" => $total * 100, // VNPay yêu cầu số tiền là VND
+            "vnp_CurrCode" => "VND",
+            "vnp_BankCode" => "VNPAY", // Thay đổi theo ngân hàng nếu cần
+            "vnp_Locale" => "vn",
+            "vnp_OrderInfo" => "Thanh toán hóa đơn: " . $invoiceCode,
+            "vnp_OrderType" => "billpayment",
+            "vnp_IpAddr" => request()->ip(),
+            "vnp_CreateDate" => now()->format('YmdHis'),
+            "vnp_ReturnUrl" => $vnp_Returnurl,
+            "vnp_TxnRef" => $invoice->invoice_code, // mã hóa đơn
+        ];
+
+        // Tạo mã bảo mật
+        ksort($vnp_Data);
+        $queryString = http_build_query($vnp_Data);
+        $vnp_SecureHash = hash_hmac('sha512', $queryString, $vnp_HashSecret);
+        $vnp_Data['vnp_SecureHash'] = $vnp_SecureHash;
+
+        // Chuyển hướng đến VNPay
+        $vnp_Url .= "?" . http_build_query($vnp_Data);
+        return response()->json(['url' => $vnp_Url]);
+    }
+
+    // Hàm nhận kết quả từ VNPay
+    public function paymentReturn(Request $request)
+    {
+        $vnp_SecureHash = $request->get('vnp_SecureHash');
+        unset($request['vnp_SecureHash']);
+
+        // Lưu vào một biến
+        $requestData = $request->all();
+
+        // Sắp xếp mảng
+        ksort($requestData);
+
+        // Tạo chuỗi truy vấn
+        $queryString = http_build_query($requestData);
+        $vnp_HashSecret = env('VNP_HASHSECRET');
+        $secureHash = hash_hmac('sha512', $queryString, $vnp_HashSecret);
+
+        if ($vnp_SecureHash === $secureHash) {
+            // Xử lý kết quả thanh toán thành công
+            $invoiceCode = $request->get('vnp_TxnRef'); // Lấy mã hóa đơn từ VNPay trả về
+            $invoice = Invoice::where('invoice_code', $invoiceCode)->first(); // Tìm hóa đơn dựa trên invoice_code
+
+            if ($invoice) {
+                // Lấy số tiền thanh toán từ VNPay
+            $amountPaid = $request->get('vnp_Amount') / 100; // VNPay trả về số tiền là VND, chia cho 100 để chuyển sang số nguyên
+                if ($request->get('vnp_ResponseCode') === '00') {
+                    // Thanh toán thành công
+                    $invoice->status = 'success'; // Cập nhật trạng thái
+                    $invoice->total = $amountPaid; // Cập nhật số tiền đã thanh toán
+                    $invoice->save(); // Lưu trạng thái hóa đơn
+
+                    // Lấy thông tin người dùng từ invoice
+                    $user = $invoice->user; // Giả sử Invoice có quan hệ 'user'
+
+                    if ($user) {
+                        // Gửi email hóa đơn
+                        Mail::to($user->email)->send(new InvoiceMail($invoice)); // Giả sử bạn đã tạo mail InvoiceMail
+
+                        return response()->json([
+                            'message' => 'Invoice status updated successfully and email sent!',
+                            'invoice_code' => $invoiceCode,
+                            'user_email' => $user->email
+                        ]);
+                    } else {
+                        return response()->json(['message' => 'User not found for this invoice!'], 404);
+                    }
+                } else {
+                    // Thanh toán thất bại
+                    $invoice->status = 'fail'; // Cập nhật trạng thái
+                    $invoice->save(); // Lưu trạng thái hóa đơn
+                    return response()->json(['message' => 'Payment failed!', 'invoice_code' => $invoiceCode]);
+                }
+            } else {
+                return response()->json(['message' => 'Invoice not found!'], 404);
+            }
+        } else {
+            return response()->json(['message' => 'Invalid secure hash!'], 400);
+        }
+    }
+}

@@ -18,5 +18,13 @@ class DatabaseSeeder extends Seeder
         //     'name' => 'Test User',
         //     'email' => 'test@example.com',
         // ]);
+
+        // Gọi seeder cho bảng users
+        $this->call([
+            UsersTableSeeder::class,
+            PackageSeeder::class,
+            VoucherTypeSeeder::class,
+            VoucherSeeder::class,
+        ]);
     }
 }
