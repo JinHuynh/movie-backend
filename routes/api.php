@@ -1,7 +1,10 @@
 <?php
 
-use Spatie\FlareClient\Api;
-use Illuminate\Http\Request;
+/*
+* Author : Jin Huỳnh
+* Purpose : Tạo các route API cho website
+*/
+
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Api\AuthController;
@@ -24,7 +27,7 @@ use App\Http\Controllers\Api\HistoryController;
 
 //______________________________________ADMIN_______________________________________________
 Route::middleware(['jwt.verify', 'admin'])->group(function () {
-//______________________________________ADMIN CRUD USER_______________________________________________
+    //______________________________________ADMIN CRUD USER_______________________________________________
     Route::get('users', [UserController::class, 'index']); // Lấy danh sách user
     Route::get('users/{id}', [UserController::class, 'show']); // Lấy thông tin user theo id
     Route::post('users', [UserController::class, 'store']); // Thêm user mới
@@ -48,6 +51,10 @@ Route::middleware(['web'])->group(function () {
 Route::middleware(['auth:api'])->group(function () {
     Route::post('logout', [AuthController::class, 'logout']); // Đăng xuất
 });
+//______________________________________FORGOT PASSWORD_______________________________________________
+Route::post('/password/email', [AuthController::class, 'sendResetLink']); // Gửi email đặt lại mật khẩu
+Route::post('/password/reset', [AuthController::class, 'resetPassword']); // Đặt lại mật khẩu
+//______________________________________USER_______________________________________________
 Route::middleware(['jwt.verify'])->group(function () {
     //______________________________________UPDATE PROFILE_______________________________________________
     Route::put('profile/update', [ProfileController::class, 'updateProfile']); // Cập nhật thông tin user
@@ -115,12 +122,12 @@ Route::middleware(['jwt.verify', 'admin'])->group(function () {
     Route::post('movies/{id}/genres', [MovieController::class, 'attachGenres']); // Thêm thể loại vào phim
 });
 //______________________________________EPISODE_______________________________________________
-Route::middleware(['jwt.vefify', 'admin'])->group(function () {
+Route::middleware(['jwt.verify', 'admin'])->group(function () {
     Route::post('/movies/{movie_id}/episodes', [EpisodeController::class, 'store']); // Thêm một tập phim mới
     Route::put('/movies/{movie_id}/episodes/{episode_id}', [EpisodeController::class, 'update']); // Cập nhật một tập phim
     Route::delete('/movies/{movie_id}/episodes/{episode_id}', [EpisodeController::class, 'destroy']); // Xóa một tập phim
 });
-Route::middleware(['jwt.vefify'])->group(function () {
+Route::middleware(['jwt.verify'])->group(function () {
     Route::get('/movies/{movie_id}/episodes', [EpisodeController::class, 'index']); // Lấy danh sách các tập phim
     Route::get('/movies/{movie_id}/episodes/{episode_id}', [EpisodeController::class, 'show']); // Lấy thông tin chi tiết một tập phim
     Route::get('/movies/{movie_id}/{episode_id}', [EpisodeController::class, 'showvip']); // Lấy thông tin chi tiết một tập phim

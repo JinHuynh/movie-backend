@@ -137,6 +137,30 @@ Header:
 }
 ```
 
+### Forgot Password
+
+#### Gửi email đặt lại mật khẩu:
+
+**POST** `localhost:8000/api/password/email`
+
+```json
+{
+    "email": "user@example.com"
+}
+```
+
+#### Đặt lại mật khẩu:
+
+**POST** `localhost:8000/api/password/reset`
+
+```json
+{
+    "token": "your-reset-token",
+    "password": "newpassword",
+    "password_confirmation": "newpassword"
+}
+```
+
 ### Logout
 
 **POST** `127.0.0.1:8000/api/logout`
@@ -165,7 +189,7 @@ Header:
 
 **DELETE** `localhost:8000/api/packages/{$packages_id}`
 
-### Package Purchase
+### Package Purchase mua gói
 
 **POST** `localhost:8000/api/package/purchase`
 
@@ -365,8 +389,7 @@ Thêm các trường như sau:
 -   `status`: 1 (hoặc giá trị khác tùy theo trạng thái).
 -   `video`: chọn file video từ máy tính của bạn.
 -   `duration`: 45 (hoặc thời gian khác).
--   `release_date`: 2024-10-05 00:00:00 (hoặc thời gian khác).
--   `episode_number`: 1 (hoặc số khác).
+-   `episode_number`: 1 (Số tập muốn up).
 
 Đường dẫn video URL:
 `localhost:8000/storage/videos/video_url`

@@ -24,10 +24,10 @@ class EpisodeController extends Controller
             'status' => 'required|integer',
             'video' => 'required|file|mimes:mp4,mov,avi,wmv|max:10240', // max 10MB
             'duration' => 'required|integer',
-            'release_date' => 'required|date',
             'episode_number' => 'required|integer',
         ]);
-
+        // Tự động cập nhật thời gian hiện tại cho 'release_date'
+        $validatedData['release_date'] = now();
         // Upload the video file
         $videoPath = $request->file('video')->store('videos', 'public'); // Lưu vào thư mục storage/app/public/videos
 
@@ -89,6 +89,9 @@ class EpisodeController extends Controller
             'release_date' => 'sometimes|required|date',
             'episode_number' => 'sometimes|required|integer',
         ]);
+
+        // Cập nhật release_date với thời gian hiện tại
+        $validatedData['release_date'] = now();
 
         $episode->update($validatedData);
 

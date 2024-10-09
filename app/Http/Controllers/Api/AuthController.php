@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -94,5 +95,46 @@ class AuthController extends Controller
         } catch (\Exception $e) {
             return response()->json(['error' => 'Đăng xuất thất bại'], 500);
         }
+    }
+    // Gửi email đặt lại mật khẩu
+    public function sendResetLink(Request $request)
+    {
+        $request->validate(['email' => 'required|email']);
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json(['error' => 'Email không tồn tại.'], 404);
+        }
+
+        // Tạo token đặt lại mật khẩu
+        $token = Str::random(60);
+
+        // Gửi email đặt lại mật khẩu
+        Mail::to($user->email)->send(new \App\Mail\ResetPassword($user, $token));
+
+        return response()->json(['message' => 'Email đặt lại mật khẩu đã được gửi!']);
+    }
+    // Đặt lại mật khẩu
+    public function resetPassword(Request $request)
+    {
+        $request->validate([
+            'token' => 'required',
+            'email' => 'required|email',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        // Kiểm tra token và email
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json(['error' => 'Email không tồn tại.'], 404);
+        }
+
+        // Đặt lại mật khẩu
+        $user->password = Hash::make($request->password);
+        $user->save();
+
+        return response()->json(['message' => 'Mật khẩu đã được đặt lại thành công.']);
     }
 }

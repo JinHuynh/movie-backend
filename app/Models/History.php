@@ -11,7 +11,7 @@ class History extends Model
 
     protected $table = 'histories';
     protected $primaryKey = 'history_id';
-
+    public $timestamps = false;
     protected $fillable = [
         'watched_at',
         'user_id',
