@@ -15,12 +15,12 @@ return new class extends Migration
             $table->id('comment_id');
             $table->string('content', 1000);
             $table->integer('rating');
-            $table->tinyInteger('status');
-            $table->dateTime('created_at');
+            $table->tinyInteger('status')->default(1);
             $table->unsignedBigInteger('user_id');
             $table->unsignedBigInteger('movie_id');
             $table->foreign('user_id')->references('user_id')->on('users');
             $table->foreign('movie_id')->references('movie_id')->on('movies');
+            $table->timestamps();
         });
     }
 

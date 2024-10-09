@@ -1,6 +1,8 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
 
 use App\Models\Invoice;
 use App\Models\Package;
@@ -13,13 +15,13 @@ use Illuminate\Support\Facades\Log;
 
 class PaymentController extends Controller
 {
-    // Hàm tạo hóa đơn và chuyển hướng đến VNPay
+    // Hàm tạo hóa đơn thanh toán
     public function createPayment(Request $request)
     {
         // Xác thực dữ liệu đầu vào
         $validator = Validator::make($request->all(), [
             'package_id' => 'required|exists:packages,package_id',
-            'voucher_name' => 'nullable|exists:vouchers,name', // Kiểm tra tên voucher
+            'voucher_name' => 'nullable|exists:vouchers,name',
         ]);
 
         if ($validator->fails()) {
@@ -37,18 +39,49 @@ class PaymentController extends Controller
         $voucherId = null; // Khởi tạo voucherId
         if ($request->voucher_name) {
             $voucher = Voucher::where('name', $request->voucher_name)->first();
+
             if ($voucher) {
-                $voucherId = $voucher->voucher_id; // Lấy ID voucher từ tên
-                // Lấy giá trị giảm giá từ voucherType
-                $discount = $voucher->voucherType->discount; // Lấy discount từ bảng voucher_types
+                // Kiểm tra nếu voucher đã hết hạn
+                $currentDate = now();
+
+                if ($voucher->expired || $currentDate->greaterThan($voucher->enddate)) {
+                    return response()->json(['message' => 'Voucher đã hết hạn.'], 400);
+                }
+
+                $voucherType = $voucher->voucherType;
+                $voucherId = $voucher->voucher_id;
+
+                // Kiểm tra số lượng voucher còn lại
+                if ($voucher->voucher_quantity <= 0) {
+                    return response()->json(['message' => 'Phiếu quà tặng không còn tồn tại.'], 400);
+                }
+
+                // Lấy danh sách user_id đã sử dụng thành công voucher từ JSON
+                $successfulUsers = $voucher->user_successful_uses ?? [];
+
+                // Kiểm tra xem người dùng đã sử dụng voucher thành công trước đó hay chưa
+                if (in_array($userId, $successfulUsers)) {
+                    return response()->json(['message' => 'Bạn đã sử dụng voucher này rồi.'], 400);
+                }
+
+                // Kiểm tra chi tiêu tối thiểu
+                if ($package->price >= $voucherType->min_spend) {
+                    if ($voucherType->discount_type === 'percentage') {
+                        $discount = ($package->price * $voucherType->discount) / 100;
+                    } elseif ($voucherType->discount_type === 'fixed') {
+                        $discount = $voucherType->discount;
+                    }
+                } else {
+                    return response()->json(['message' => 'Giá gói không đáp ứng mức chi tiêu tối thiểu cho voucher này.'], 400);
+                }
+            } else {
+                return response()->json(['message' => 'Voucher không tồn tại.'], 404);
             }
         }
 
         // Tính tổng sau khi giảm giá
-        $discountAmount = ($package->price * $discount) / 100; // Tính giá trị giảm giá
-        $total = $package->price - $discountAmount; // Trừ discount từ giá gói
-        $total = max($total, 0); // Đảm bảo tổng không âm
-        // dd($total);
+        $total = max($package->price - $discount, 0); // Đảm bảo tổng không âm
+
         // Tạo hóa đơn
         $invoice = Invoice::create([
             'invoice_code' => $invoiceCode,
@@ -75,7 +108,7 @@ class PaymentController extends Controller
             "vnp_TmnCode" => $vnp_TmnCode,
             "vnp_Amount" => $total * 100, // VNPay yêu cầu số tiền là VND
             "vnp_CurrCode" => "VND",
-            "vnp_BankCode" => "VNPAY", // Thay đổi theo ngân hàng nếu cần
+            "vnp_BankCode" => "VNPAY",
             "vnp_Locale" => "vn",
             "vnp_OrderInfo" => "Thanh toán hóa đơn: " . $invoiceCode,
             "vnp_OrderType" => "billpayment",
@@ -95,6 +128,7 @@ class PaymentController extends Controller
         $vnp_Url .= "?" . http_build_query($vnp_Data);
         return response()->json(['url' => $vnp_Url]);
     }
+
 
     // Hàm nhận kết quả từ VNPay
     public function paymentReturn(Request $request)
@@ -120,12 +154,30 @@ class PaymentController extends Controller
 
             if ($invoice) {
                 // Lấy số tiền thanh toán từ VNPay
-            $amountPaid = $request->get('vnp_Amount') / 100; // VNPay trả về số tiền là VND, chia cho 100 để chuyển sang số nguyên
+                $amountPaid = $request->get('vnp_Amount') / 100; // VNPay trả về số tiền là VND, chia cho 100 để chuyển sang số nguyên
                 if ($request->get('vnp_ResponseCode') === '00') {
                     // Thanh toán thành công
                     $invoice->status = 'success'; // Cập nhật trạng thái
                     $invoice->total = $amountPaid; // Cập nhật số tiền đã thanh toán
                     $invoice->save(); // Lưu trạng thái hóa đơn
+
+                    // Chỉ trừ số lượng voucher nếu thanh toán thành công
+                    if ($invoice->voucher_id) {
+                        $voucher = Voucher::find($invoice->voucher_id);
+
+                        if ($voucher && $voucher->voucher_quantity > 0) {
+                            $voucher->voucher_quantity -= 1;
+
+                            // Lấy danh sách user đã sử dụng thành công từ JSON
+                            $successfulUsers = $voucher->user_successful_uses ?? [];
+                            $successfulUsers[] = $invoice->user_id; // Thêm user_id vào danh sách
+
+                            $voucher->user_successful_uses = $successfulUsers; // Lưu lại danh sách
+                            $voucher->save();
+                        } else {
+                            return response()->json(['message' => 'Phiếu quà tặng không còn tồn tại.'], 400);
+                        }
+                    }
 
                     // Lấy thông tin người dùng từ invoice
                     $user = $invoice->user; // Giả sử Invoice có quan hệ 'user'
@@ -135,21 +187,21 @@ class PaymentController extends Controller
                         Mail::to($user->email)->send(new InvoiceMail($invoice)); // Giả sử bạn đã tạo mail InvoiceMail
 
                         return response()->json([
-                            'message' => 'Invoice status updated successfully and email sent!',
+                            'message' => 'Trạng thái hóa đơn được cập nhật thành công và gửi email!',
                             'invoice_code' => $invoiceCode,
                             'user_email' => $user->email
                         ]);
                     } else {
-                        return response()->json(['message' => 'User not found for this invoice!'], 404);
+                        return response()->json(['message' => 'Không tìm thấy người dùng cho hóa đơn này!'], 404);
                     }
                 } else {
                     // Thanh toán thất bại
                     $invoice->status = 'fail'; // Cập nhật trạng thái
                     $invoice->save(); // Lưu trạng thái hóa đơn
-                    return response()->json(['message' => 'Payment failed!', 'invoice_code' => $invoiceCode]);
+                    return response()->json(['message' => 'Thanh toán không thành công!', 'invoice_code' => $invoiceCode]);
                 }
             } else {
-                return response()->json(['message' => 'Invoice not found!'], 404);
+                return response()->json(['message' => 'Không tìm thấy hóa đơn!'], 404);
             }
         } else {
             return response()->json(['message' => 'Invalid secure hash!'], 400);

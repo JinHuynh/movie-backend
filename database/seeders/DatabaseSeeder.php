@@ -3,6 +3,9 @@
 namespace Database\Seeders;
 
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+
+use App\Models\Actor;
+use App\Models\Genre;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -25,6 +28,12 @@ class DatabaseSeeder extends Seeder
             PackageSeeder::class,
             VoucherTypeSeeder::class,
             VoucherSeeder::class,
+            ActorSeeder::class,
+            GenreSeeder::class,
+            MovieTypeSeeder::class,
+            MovieSeeder::class,
+            MoviesActorsSeeder::class,
+            MoviesGenresSeeder::class,
         ]);
     }
 }

@@ -25,12 +25,6 @@ class UserController extends Controller
 
         // Lấy thông tin người dùng
         $user = Auth::user();
-
-        // // Kiểm tra vai trò người dùng
-        // if ($user->role === 0) {
-        //     return response()->json(['error' => 'Truy cập bị từ chối. Chỉ cho phép quản trị viên.'], 403);
-        // }
-
         // Trả về token JWT và thông tin người dùng
         return response()->json([
             'status' => 'success',

@@ -95,7 +95,7 @@
                 text-decoration: underline;
             }
         </style>
-        <div style="margin:0px auto;max-width:640px;background:transparent;">
+        {{-- <div style="margin:0px auto;max-width:640px;background:transparent;">
             <table role="presentation" cellpadding="0" cellspacing="0"
                 style="font-size:0px;width:100%;background:transparent;" align="center" border="0">
                 <tbody>
@@ -135,7 +135,7 @@
                     </tr>
                 </tbody>
             </table>
-        </div>
+        </div> --}}
         <div
             style="max-width:640px;margin:0 auto;box-shadow:0px 1px 5px rgba(0,0,0,0.1);border-radius:4px;overflow:hidden">
             <div
@@ -178,9 +178,9 @@
                                                                 alt="Party Wumpus" title="Loa Loa Loa..." width="500"
                                                                 style="height: auto;"></p>
 
-                                                        {{-- <h2
+                                                        <h2
                                                             style="font-family: Whitney, Helvetica Neue, Helvetica, Arial, Lucida Grande, sans-serif;font-weight: 500;font-size: 20px;color: #4F545C;letter-spacing: 0.27px;">
-                                                            Hey {{ $user->user_name }},</h2> --}}
+                                                            Hey {{ $user->user_name }},</h2>
                                                         <p>Ôi chao! Cảm ơn bạn đã đăng ký tài khoản với <a>Web xem phim
                                                                 Lậu lớn nhất Đông Nam Á!</a> Bạn là người tuyệt vời nhất
                                                             trên trái đất.</p>
@@ -198,11 +198,11 @@
                                                             <tr>
                                                                 <td style="border:none;border-radius:3px;color:white;cursor:auto;padding:15px 19px;"
                                                                     align="center" valign="middle" bgcolor="#7289DA">
-                                                                    {{-- <a href="{{ url('api/verify-email/' . $userId . '/' . $token) }}"
+                                                                    <a href="{{ url('api/verify-email/' . $userId . '/' . $token) }}"
                                                                         style="text-decoration:none;line-height:100%;background:#7289DA;color:white;font-family:Ubuntu, Helvetica, Arial, sans-serif;font-size:15px;font-weight:normal;text-transform:none;margin:0px;"
                                                                         target="_blank">
                                                                         Xác minh Email
-                                                                    </a> --}}
+                                                                    </a>
                                                                 </td>
                                                             </tr>
                                                         </tbody>
